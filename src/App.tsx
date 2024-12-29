@@ -7,48 +7,23 @@ import {
   GRID_SIZE,
   interpolatePoints,
 } from "./game/util";
+
 import GameEngine from "./game/GameEngine";
-
-// Separate component for game stats
-const GameStats = ({ gameEngine }: { gameEngine: GameEngine | undefined }) => {
-  const [stats, setStats] = useState({ generation: 0, population: 0 });
-
-  // Update stats when the game engine changes
-  const updateStats = useCallback(() => {
-    setStats({
-      generation: gameEngine?.generation ?? 0,
-      population: gameEngine?.activeCells.size ?? 0,
-    });
-  }, [gameEngine]);
-
-  // Expose the update function to parent
-  useLayoutEffect(() => {
-    if (!gameEngine) return;
-
-    gameEngine.onStateChange = updateStats;
-    return () => {
-      gameEngine.onStateChange = null;
-    };
-  }, [gameEngine, updateStats]);
-
-  return (
-    <div style={{ display: "flex", flexDirection: "row", gap: "10px" }}>
-      <div>Generation: {stats.generation}</div>
-      <div>Population: {stats.population}</div>
-    </div>
-  );
-};
+import GameStats from "./components/GameStats";
 
 function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
   const mouseRef = useRef<{ x: number; y: number } | null>(null);
   const lastMousePosRef = useRef<{ x: number; y: number } | null>(null);
   const mouseDownPosRef = useRef<{ x: number; y: number } | null>(null);
-  const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
   const isMouseDownRef = useRef(false);
 
+  const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
+
   // Initialize game engine immediately and store in state
-  const [gameEngine] = useState(() => new GameEngine());
+  const [gameEngine] = useState(() => new GameEngine(5));
+  const [gameSpeed, setGameSpeed] = useState(5);
 
   const setupCanvas = useCallback((canvas: HTMLCanvasElement) => {
     const dpr = window.devicePixelRatio || 1;
@@ -161,18 +136,18 @@ function App() {
     if (!ctx) return;
 
     ctxRef.current = ctx;
+    gameEngine.setRedrawCallback(redrawCanvas);
     redrawCanvas();
-  }, [setupCanvas, redrawCanvas]);
+  }, [setupCanvas, redrawCanvas, gameEngine]);
 
-  const clearCanvas = useCallback(() => {
-    gameEngine.killAll();
-    redrawCanvas();
-  }, [gameEngine, redrawCanvas]);
-
-  const nextGeneration = useCallback(() => {
-    gameEngine.nextGeneration();
-    redrawCanvas();
-  }, [gameEngine, redrawCanvas]);
+  const handleGameSpeedChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const speed = Number(e.target.value);
+      setGameSpeed(speed);
+      gameEngine.setGameSpeed(speed);
+    },
+    [gameEngine]
+  );
 
   return (
     <main
@@ -183,20 +158,17 @@ function App() {
         alignItems: "center",
       }}
     >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          gap: "10px",
-        }}
-      >
-        <button onClick={clearCanvas}>Clear</button>
-        <button>Start</button>
-        <button>Pause</button>
-        <button onClick={nextGeneration}>Step</button>
-      </div>
-
       <GameStats gameEngine={gameEngine} />
+
+      <div>Game Speed: {gameSpeed.toFixed(2)}</div>
+      <input
+        type="range"
+        min="1"
+        max="10"
+        value={gameSpeed}
+        step="any"
+        onChange={handleGameSpeedChange}
+      />
 
       <canvas
         id="canvas"

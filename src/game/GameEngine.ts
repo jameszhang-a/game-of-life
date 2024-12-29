@@ -15,21 +15,43 @@ class GameEngine {
   activeCells: Set<string> = new Set();
   generation: number = 0;
   onStateChange: (() => void) | null = null;
+  onRedraw: (() => void) | null = null;
+  gameSpeed: number; // generation per second
+  gameState: "running" | "paused" | "stopped" = "stopped";
 
-  constructor() {
-    this.activeCells = new Set();
+  intervalId: ReturnType<typeof setInterval> | null = null;
+
+  constructor(gameSpeed: number) {
+    this.gameSpeed = gameSpeed;
+  }
+
+  setRedrawCallback(callback: () => void) {
+    this.onRedraw = callback;
+  }
+
+  setGameSpeed(speed: number) {
+    this.gameSpeed = speed;
+    if (this.gameState === "running" && this.intervalId) {
+      clearInterval(this.intervalId);
+      this.intervalId = setInterval(() => {
+        this.nextGeneration();
+      }, 1000 / this.gameSpeed);
+      this.onStateChange?.();
+    }
   }
 
   addCell(cell: coords) {
     const key = cell.join(",");
     this.activeCells.add(key);
     this.onStateChange?.();
+    this.onRedraw?.();
   }
 
   removeCell(cell: coords) {
     const key = cell.join(",");
     this.activeCells.delete(key);
     this.onStateChange?.();
+    this.onRedraw?.();
   }
 
   isAlive(cell: coords) {
@@ -41,10 +63,15 @@ class GameEngine {
     this.activeCells.clear();
     this.generation = 0;
     this.onStateChange?.();
+    this.onRedraw?.();
   }
 
   getActiveCells() {
     return this.activeCells;
+  }
+
+  getGameState() {
+    return this.gameState;
   }
 
   nextGeneration() {
@@ -92,6 +119,38 @@ class GameEngine {
 
     this.activeCells = newActiveCells;
     this.generation++;
+    this.onStateChange?.();
+    this.onRedraw?.();
+  }
+
+  startGame() {
+    if (this.gameState === "running") return;
+
+    this.gameState = "running";
+    this.intervalId = setInterval(() => {
+      this.nextGeneration();
+    }, 1000 / this.gameSpeed);
+    this.onStateChange?.();
+  }
+
+  pauseGame() {
+    if (this.gameState !== "running") return;
+
+    this.gameState = "paused";
+    if (this.intervalId) {
+      clearInterval(this.intervalId);
+      this.intervalId = null;
+    }
+    this.onStateChange?.();
+  }
+
+  stopGame() {
+    this.gameState = "stopped";
+    if (this.intervalId) {
+      clearInterval(this.intervalId);
+      this.intervalId = null;
+    }
+    this.killAll();
     this.onStateChange?.();
   }
 }
