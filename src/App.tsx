@@ -188,7 +188,7 @@ function App() {
         flexDirection: "column",
         alignItems: "center",
         gap: "8px",
-        height: "100vh",
+        height: "100dvh",
         boxSizing: "border-box",
         paddingTop: "56px",
       }}
@@ -222,7 +222,7 @@ function App() {
       <div
         style={{
           flex: 1,
-          width: "100vw",
+          width: "100dvw",
           display: "flex",
           justifyContent: "center",
           alignItems: "center",
