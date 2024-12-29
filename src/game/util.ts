@@ -1,6 +1,11 @@
-const GRID_SIZE = 10;
-const GAME_WIDTH = 800;
-const GAME_HEIGHT = 600;
+const GRID_SIZE = 15;
+let GAME_WIDTH = 800;
+let GAME_HEIGHT = 600;
+
+const setGameDimensions = (width: number, height: number) => {
+  GAME_WIDTH = width;
+  GAME_HEIGHT = height;
+};
 
 const drawBorder = (ctx: CanvasRenderingContext2D) => {
   ctx.strokeStyle = "white";
@@ -84,4 +89,5 @@ export {
   GRID_SIZE,
   GAME_WIDTH,
   GAME_HEIGHT,
+  setGameDimensions,
 };

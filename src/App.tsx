@@ -2,10 +2,9 @@ import { useRef, useLayoutEffect, useCallback, useState } from "react";
 import "./App.css";
 import {
   drawGrid,
-  GAME_HEIGHT,
-  GAME_WIDTH,
   GRID_SIZE,
   interpolatePoints,
+  setGameDimensions,
 } from "./game/util";
 
 import GameEngine from "./game/GameEngine";
@@ -28,6 +27,9 @@ function App() {
   const setupCanvas = useCallback((canvas: HTMLCanvasElement) => {
     const dpr = window.devicePixelRatio || 1;
     const rect = canvas.getBoundingClientRect();
+
+    // Update game dimensions based on container size
+    setGameDimensions(rect.width, rect.height);
 
     canvas.width = rect.width * dpr;
     canvas.height = rect.height * dpr;
@@ -132,12 +134,42 @@ function App() {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.target === canvas.parentElement) {
+          const rect = entry.contentRect;
+          setGameDimensions(rect.width, rect.height);
+
+          const dpr = window.devicePixelRatio || 1;
+          canvas.width = rect.width * dpr;
+          canvas.height = rect.height * dpr;
+
+          const ctx = canvas.getContext("2d");
+          if (ctx) {
+            ctx.scale(dpr, dpr);
+            canvas.style.width = `${rect.width}px`;
+            canvas.style.height = `${rect.height}px`;
+            ctxRef.current = ctx;
+            redrawCanvas();
+          }
+        }
+      }
+    });
+
+    if (canvas.parentElement) {
+      resizeObserver.observe(canvas.parentElement);
+    }
+
     const ctx = setupCanvas(canvas);
     if (!ctx) return;
 
     ctxRef.current = ctx;
     gameEngine.setRedrawCallback(redrawCanvas);
     redrawCanvas();
+
+    return () => {
+      resizeObserver.disconnect();
+    };
   }, [setupCanvas, redrawCanvas, gameEngine]);
 
   const handleGameSpeedChange = useCallback(
@@ -154,32 +186,63 @@ function App() {
       style={{
         display: "flex",
         flexDirection: "column",
-        gap: "10px",
         alignItems: "center",
+        gap: "8px",
+        height: "100vh",
+        boxSizing: "border-box",
+        paddingTop: "56px",
       }}
     >
       <GameStats gameEngine={gameEngine} />
 
-      <div>Game Speed: {gameSpeed.toFixed(2)}</div>
-      <input
-        type="range"
-        min="1"
-        max="10"
-        value={gameSpeed}
-        step="any"
-        onChange={handleGameSpeedChange}
-      />
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "row",
+          gap: "4px",
+          alignItems: "center",
+          paddingBottom: "8px",
+        }}
+      >
+        <div>Game Speed: </div>
+        <input
+          type="range"
+          min="1"
+          max="15"
+          value={gameSpeed}
+          step="any"
+          onChange={handleGameSpeedChange}
+          style={{
+            width: "150px",
+          }}
+        />
+        <div>{gameSpeed.toFixed(2)}</div>
+      </div>
 
-      <canvas
-        id="canvas"
-        width={GAME_WIDTH}
-        height={GAME_HEIGHT}
-        ref={canvasRef}
-        style={{ width: GAME_WIDTH, height: GAME_HEIGHT }}
-        onMouseDown={handleMouseDown}
-        onMouseUp={handleMouseUp}
-        onMouseMove={onMouseMove}
-      />
+      <div
+        style={{
+          flex: 1,
+          width: "100vw",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          overflow: "hidden",
+          boxSizing: "border-box",
+          minHeight: 0,
+        }}
+      >
+        <canvas
+          id="canvas"
+          ref={canvasRef}
+          style={{
+            width: "100%",
+            height: "100%",
+          }}
+          onMouseDown={handleMouseDown}
+          onMouseUp={handleMouseUp}
+          onMouseMove={onMouseMove}
+        />
+      </div>
     </main>
   );
 }
