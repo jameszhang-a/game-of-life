@@ -14,10 +14,7 @@ const drawBorder = (ctx: CanvasRenderingContext2D) => {
   ctx.stroke();
 };
 
-const drawGrid = (
-  ctx: CanvasRenderingContext2D,
-  filledSquares: Set<string>
-) => {
+const drawGrid = (ctx: CanvasRenderingContext2D, activeCells: Set<string>) => {
   // Clear the canvas first
   ctx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
 
@@ -25,7 +22,7 @@ const drawGrid = (
 
   // Draw filled squares
   ctx.fillStyle = "white";
-  filledSquares.forEach((key) => {
+  activeCells.forEach((key) => {
     const [x, y] = key.split(",").map(Number);
     ctx.fillRect(x * GRID_SIZE, y * GRID_SIZE, GRID_SIZE, GRID_SIZE);
   });

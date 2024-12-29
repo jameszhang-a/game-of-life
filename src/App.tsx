@@ -1,4 +1,4 @@
-import { useRef, useLayoutEffect, useState, useCallback } from "react";
+import { useRef, useLayoutEffect, useCallback, useState } from "react";
 import "./App.css";
 import {
   drawGrid,
@@ -6,16 +6,49 @@ import {
   GAME_WIDTH,
   GRID_SIZE,
   interpolatePoints,
-} from "./util";
+} from "./game/util";
+import GameEngine from "./game/GameEngine";
+
+// Separate component for game stats
+const GameStats = ({ gameEngine }: { gameEngine: GameEngine | undefined }) => {
+  const [stats, setStats] = useState({ generation: 0, population: 0 });
+
+  // Update stats when the game engine changes
+  const updateStats = useCallback(() => {
+    setStats({
+      generation: gameEngine?.generation ?? 0,
+      population: gameEngine?.activeCells.size ?? 0,
+    });
+  }, [gameEngine]);
+
+  // Expose the update function to parent
+  useLayoutEffect(() => {
+    if (!gameEngine) return;
+
+    gameEngine.onStateChange = updateStats;
+    return () => {
+      gameEngine.onStateChange = null;
+    };
+  }, [gameEngine, updateStats]);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "row", gap: "10px" }}>
+      <div>Generation: {stats.generation}</div>
+      <div>Population: {stats.population}</div>
+    </div>
+  );
+};
 
 function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const mouseRef = useRef<{ x: number; y: number } | null>(null);
   const lastMousePosRef = useRef<{ x: number; y: number } | null>(null);
   const mouseDownPosRef = useRef<{ x: number; y: number } | null>(null);
+  const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
+  const isMouseDownRef = useRef(false);
 
-  const [filledSquares, setFilledSquares] = useState<Set<string>>(new Set());
-  const [isMouseDown, setIsMouseDown] = useState(false);
+  // Initialize game engine immediately and store in state
+  const [gameEngine] = useState(() => new GameEngine());
 
   const setupCanvas = useCallback((canvas: HTMLCanvasElement) => {
     const dpr = window.devicePixelRatio || 1;
@@ -34,9 +67,15 @@ function App() {
     return ctx;
   }, []);
 
+  const redrawCanvas = useCallback(() => {
+    if (ctxRef.current) {
+      drawGrid(ctxRef.current, gameEngine.getActiveCells());
+    }
+  }, [gameEngine]);
+
   const onMouseMove = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
-      if (isMouseDown) {
+      if (isMouseDownRef.current) {
         const { clientX: x, clientY: y } = e;
         const rect = canvasRef.current?.getBoundingClientRect();
         if (!rect) return;
@@ -60,22 +99,22 @@ function App() {
             currentGridY
           );
 
-          setFilledSquares((prev) => {
-            const next = new Set(prev);
-            interpolatedPoints.forEach((point) => next.add(point));
-            return next;
+          interpolatedPoints.forEach((point) => {
+            const [x, y] = point.split(",").map(Number);
+            gameEngine.addCell([x, y]);
           });
+          redrawCanvas();
         }
 
         lastMousePosRef.current = currentPos;
       }
     },
-    [isMouseDown]
+    [gameEngine, redrawCanvas]
   );
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
-      setIsMouseDown(true);
+      isMouseDownRef.current = true;
       const rect = canvasRef.current?.getBoundingClientRect();
       if (!rect) return;
       lastMousePosRef.current = {
@@ -89,7 +128,7 @@ function App() {
   );
 
   const handleMouseUp = useCallback(() => {
-    setIsMouseDown(false);
+    isMouseDownRef.current = false;
 
     if (mouseDownPosRef.current && mouseRef.current) {
       const rect = canvasRef.current?.getBoundingClientRect();
@@ -104,18 +143,15 @@ function App() {
       const currentGridY = Math.floor(mouseRef.current.y / GRID_SIZE);
       const currentKey = `${currentGridX},${currentGridY}`;
       if (currentKey == prevKey) {
-        setFilledSquares((prev) => {
-          const next = new Set(prev);
-          if (next.has(currentKey)) {
-            next.delete(currentKey);
-          } else {
-            next.add(currentKey);
-          }
-          return next;
-        });
+        if (gameEngine.isAlive([currentGridX, currentGridY])) {
+          gameEngine.removeCell([currentGridX, currentGridY]);
+        } else {
+          gameEngine.addCell([currentGridX, currentGridY]);
+        }
+        redrawCanvas();
       }
     }
-  }, []);
+  }, [gameEngine, redrawCanvas]);
 
   useLayoutEffect(() => {
     const canvas = canvasRef.current;
@@ -124,29 +160,54 @@ function App() {
     const ctx = setupCanvas(canvas);
     if (!ctx) return;
 
-    drawGrid(ctx, filledSquares);
-  }, [setupCanvas, filledSquares]);
+    ctxRef.current = ctx;
+    redrawCanvas();
+  }, [setupCanvas, redrawCanvas]);
 
-  const clearCanvas = () => {
-    setFilledSquares(new Set());
-  };
+  const clearCanvas = useCallback(() => {
+    gameEngine.killAll();
+    redrawCanvas();
+  }, [gameEngine, redrawCanvas]);
+
+  const nextGeneration = useCallback(() => {
+    gameEngine.nextGeneration();
+    redrawCanvas();
+  }, [gameEngine, redrawCanvas]);
 
   return (
-    <main>
+    <main
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: "10px",
+        alignItems: "center",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          gap: "10px",
+        }}
+      >
+        <button onClick={clearCanvas}>Clear</button>
+        <button>Start</button>
+        <button>Pause</button>
+        <button onClick={nextGeneration}>Step</button>
+      </div>
+
+      <GameStats gameEngine={gameEngine} />
+
       <canvas
         id="canvas"
         width={GAME_WIDTH}
         height={GAME_HEIGHT}
         ref={canvasRef}
-        // onClick={handleCanvasClick}
         style={{ width: GAME_WIDTH, height: GAME_HEIGHT }}
         onMouseDown={handleMouseDown}
         onMouseUp={handleMouseUp}
         onMouseMove={onMouseMove}
       />
-      <div>
-        <button onClick={clearCanvas}>Clear</button>
-      </div>
     </main>
   );
 }
